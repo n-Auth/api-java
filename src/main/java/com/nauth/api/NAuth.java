@@ -1,467 +1,305 @@
 package com.nauth.api;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
 
 public class NAuth {
-	public String getServeruri() {
-		return serveruri;
-	}
+
+    private final static Logger logger = LoggerFactory.getLogger(NAuth.class);
+
+    private final String serverURI;
+    private final String serverId;
+    private final String apiKey;
+    private final NAuthBackend backend;
+    private final String realm;
 
 
-	public void setServeruri(String serveruri) {
-		this.serveruri = serveruri;
-	}
+    public NAuth(String serverURI, String serverId, String apiKey, String realm, boolean useSSL) {
+        this.serverURI = serverURI;
+        this.serverId = serverId;
+        this.apiKey = apiKey;
+        this.realm = realm;
+
+        backend = new NAuthBackend(useSSL);
+    }
+
+    public NAuth(String serverURI, String serverId, String apiKey, String realm) {
+        this(serverURI, serverId, apiKey, realm, false);
+    }
+
+    private String serverGet(String method, String[] queryParts, Map<String, String> params) {
+        return backend.getHttpAsString(method, serverURI, queryParts, params, getHeaders());
+    }
+
+    private byte[] serverGetBytes(String method, String[] queryParts, Map<String, String> params) {
+        return backend.getHttpAsBytes(method, serverURI, queryParts, params, getHeaders());
+    }
 
 
-	public String getRealm() {
-		return realm;
-	}
+    /**
+     * Logout the current NAuth session
+     */
+    public void logout(String sessionId) {
+        serverGet("POST", new String[]{"servers", serverId, "sessions", sessionId, "logout"}, null);
+    }
 
+    private Map<String, String> getHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("X-ApiKey", apiKey);
+        return headers;
+    }
 
-	public void setRealm(String realm) {
-		this.realm = realm;
-	}
+    private JSONObject sessionCheck(final String sessionId) {
+        Map<String, String> params = new HashMap<>();
+        params.put("realm", realm);
 
+        JSONParser parser = new JSONParser();
+        try {
+            return (JSONObject) parser.parse(serverGet("GET",
+                    new String[]{"servers", serverId, "sessions", sessionId}, params));
+        } catch (ParseException e) {
+            return null;
+        }
+    }
 
-	public String getId() {
-		return sid;
-	}
-	
-	public String getHashId(){
-		if($hsid == null){
-			login_forcecheck();
-			return $hsid;
-		} else {
-			return $hsid;
-		}
-	}
+    /**
+     * Fetches either the information about the logged in user or the QR code to login
+     *
+     * @return @see com.nauth.api.LoginInformation object that contains information about the login
+     */
+    public LoginInformation tryLogin(String sessionId) {
+        JSONObject loginData = sessionCheck(sessionId);
+        if (loginData == null) return null;
+        return new LoginInformation(
+                (Boolean) loginData.get("loggedin"),
+                (Boolean) loginData.get("canprovoke"),
+                (String) loginData.get("userid"),
+                (String) loginData.get("loginqrdata"),
+                (String) loginData.get("pk"),
+                (String) loginData.get("hsid")
+        );
+    }
 
+    /**
+     * Register a userId for the currently logged in session
+     *
+     * @param userId
+     * @return boolean True on success
+     */
+    public boolean registerUser(String sessionId, String userId) {
+        if (!tryLogin(sessionId).isLoggedIn())
+            return false;
 
-	public void setId(String sid) {
-		this.sid = sid;
-	}
+        Map<String, String> params = new HashMap<>();
+        params.put("realm", realm);
+        params.put("userid", userId);
 
+        serverGet("POST",
+                new String[]{"servers", serverId, "sessions", sessionId, "registeruser"}, params);
+        return true;
+    }
 
-	public String getServerid() {
-		return serverid;
-	}
+    /**
+     * Returns a PNG image of the visual login code
+     *
+     * @param sessionId the id of the session
+     * @param imgtype   Type of image
+     * @param size      Size of the image in pixels
+     * @return Raw PNG data
+     */
+    public byte[] getLoginImage(String sessionId, ImageType imgtype, int size) {
+        if (imgtype == null)
+            imgtype = ImageType.QR;
 
+        Map<String, String> params = new HashMap<>();
+        params.put("realm", realm);
+        params.put("userid", null);
+        params.put("type", RequestType.LOGIN.toString());
+        params.put("name", null);
+        params.put("s", "" + size);
+        params.put("img", imgtype.toString());
 
-	public void setServerid(String serverid) {
-		this.serverid = serverid;
-	}
+        return serverGetBytes("GET", new String[]{"servers", serverId, "sessions", sessionId, "qr"}, params);
+    }
 
+    /**
+     * Returns a PNG image of the visual register code
+     *
+     * @param sessionId the id of the session
+     * @param userId    the id of the user trying to register
+     * @param userId    the name of the user trying to register
+     * @param size      Size of the image in pixels
+     * @return Raw PNG data
+     */
+    public byte[] getRegisterImage(String sessionId, String userId, String name, int size) {
+        Map<String, String> params = new HashMap<>();
+        params.put("realm", realm);
+        params.put("userid", userId);
+        params.put("type", RequestType.REGISTER.toString());
+        params.put("name", name);
+        params.put("s", size + "");
+        params.put("img", ImageType.QR.toString());
 
-	public String getApikey() {
-		return apikey;
-	}
+        return serverGetBytes("GET", new String[]{"servers", serverId, "sessions", sessionId, "qr"}, params);
+    }
 
+    /**
+     * Provoke a login for the current user
+     *
+     * @return boolean True on success
+     */
+    public boolean provokelogin(String sessionId) {
+        String result = serverGet("POST", new String[]{"servers", serverId, "sessions", sessionId, "provokelogin"}, null);
+        JSONParser parser = new JSONParser();
+        try {
+            JSONObject obj = (JSONObject) parser.parse(result);
+            Boolean ret = (Boolean) obj.get("result");
+            return ret;
+        } catch (ParseException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 
-	public void setApikey(String apikey) {
-		this.apikey = apikey;
-	}
+    /**
+     * Get all accounts of the specified user
+     *
+     * @param userid Userid
+     * @return JSONArray array of JSONObject's containing account data
+     */
+    public List<NAuthAccount> getUserAccountsFor(String userid) {
+        Map<String, String> params = new HashMap<>();
+        params.put("realm", realm);
 
+        String data = serverGet("GET", new String[]{"servers", serverId, "users", userid}, params);
 
-	public String getWsuri() {
-		return wsuri;
-	}
+        JSONParser jsonParser = new JSONParser();
+        try {
+            JSONArray accounts = (JSONArray) jsonParser.parse(data);
+            return convertToAccounts(accounts);
+        } catch (ParseException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
 
+    private List<NAuthAccount> convertToAccounts(JSONArray accounts) {
+        List<NAuthAccount> nAuthAccounts = new ArrayList<>();
+        for (int i = 0; i < accounts.size(); i++) {
+            nAuthAccounts.add(convertToAccount((JSONObject) accounts.get(i)));
+        }
+        return nAuthAccounts;
+    }
 
-	public void setWsuri(String wsuri) {
-		this.wsuri = wsuri;
-	}
+    private NAuthAccount convertToAccount(JSONObject account) {
+        return new NAuthAccount(
+                (Long) account.get("id"),
+                (Boolean) account.get("publicKeyAuthRevoked"),
+                (Boolean) account.get("publicKeyTransRevoked"),
+                (String) account.get("description"),
+                new Date((Long) account.get("lastlogin")),
+                new Date((Long) account.get("creation")),
+                (Boolean) account.get("blocked")
+        );
+    }
 
+    /**
+     * Get all accounts of all users
+     *
+     * @return JSONArray array of JSONObject's containing account data
+     */
+    public JSONArray getUsers() {
+        Map<String, String> params = new HashMap<>();
+        params.put("realm", realm);
 
-	public String getFallbackwsuri() {
-		return fallbackwsuri;
-	}
+        String data = serverGet("GET", new String[]{"servers", serverId, "users"}, params);
 
+        JSONParser jsonParser = new JSONParser();
+        try {
+            return (JSONArray) jsonParser.parse(data);
+        } catch (ParseException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
 
-	public void setFallbackwsuri(String fallbackwsuri) {
-		this.fallbackwsuri = fallbackwsuri;
-	}
+    /**
+     * block account of the given user
+     *
+     * @param userid Userid
+     * @return true if the action was successful
+     */
+    public void blockUser(String userid, boolean blocked) {
+        Map<String, String> params = new HashMap<>();
+        params.put("realm", realm);
+        params.put("blocked", blocked ? "true" : "false");
 
+        serverGet("PUT", new String[]{"servers", serverId, "users", userid}, params);
+    }
 
-	private String serveruri = "http://localhost:8888/";
-	private String realm = "";
-	private String sid = "";
-	private String serverid = "";
-	private String apikey = "";
-	private NAuthBackend backend;
-	private String wsuri;
-	private String fallbackwsuri;
+    /**
+     * Create a new transaction with the specified message
+     *
+     * @param sessionId The id of the session
+     * @param msg       Message for the transaction
+     * @return Base64 encoded transaction identifier
+     */
+    public String createTransaction(String sessionId, String msg) {
+        Map<String, String> params = new HashMap<>();
+        params.put("msg", msg);
 
-		
-	/* temporary caching */
-	private String $userid;
-	private String $userpk;
-	private Boolean $loggedin = null;
-	private Boolean $canprovoke = null;
-	private String $loginqrdata = null;
-	private String $hsid = null;
-	
-	public NAuth(String serverid, String apikey,boolean useSSL){
-		setServerid(serverid);
-		setApikey(apikey);
-		
-		backend = new NAuthBackend(useSSL);
-	}
-	
-	public NAuth(String serverid, String apikey){
-		setServerid(serverid);
-		setApikey(apikey);
-		
-		backend = new NAuthBackend(false);
-	}
-	
-	protected String serverGet(String method, String[] queryParts, Map<String,String> params){
-		return backend.getHttpAsString(method, getServeruri(),queryParts,params,getHeaders());
-	}
-	
-	protected byte [] serverGetBytes(String method, String[] queryParts, Map<String,String> params){
-		return backend.getHttpAsBytes(method, getServeruri(),queryParts,params,getHeaders());
-	}
-	
-	
-	
-	/**
-	 * Logout the current NAuth session
-	 */
-	public void logout(){
-		
-		serverGet("POST", new String[] {"servers",getServerid(),"sessions",getId(),"logout"}, null);
-	}
-	
-	private Map<String,String> getHeaders(){
-		Map<String, String> headers = new HashMap<String, String>();
-		headers.put("X-ApiKey", getApikey());
-		return headers;
-	}
- 	
-	private JSONObject sessionCheck(){
-		Map<String, String> params = new HashMap<String, String>();
-		params.put("realm", getRealm());
-		
-		JSONParser parser = new JSONParser();
-		try {
-			return (JSONObject) parser.parse(serverGet("GET", 
-					new String[]{"servers",getServerid(),"sessions",getId()}, params));
-		} catch (ParseException e) {
-			return null;
-		}
-	}
-	
-	/**
-	 * Check if the user is logged in.
-	 * Note that this method might used a cached result. 
-	 * Caching happens automatically in an NAuth object, but are not stored in the session or shared otherwise over multiple requests.
-	 * 
-	 * @return boolean True if the user is logged in through NAuth
-	 */
-	public boolean login(){
-		if($loggedin == null){
-			return login_forcecheck();
-		} else {
-			return $loggedin;
-		}
-	}
-	
-	/**
-	 * Check if the user is logged in.
-	 * This method never uses caching and has an impact on performance.
-	 *
-	 * @return boolean True if the user is logged in through NAuth
-	 */
-	public boolean login_forcecheck() {
-		$loggedin = false;
-		
-		JSONObject loginData = sessionCheck();
-		if(((Boolean) loginData.get("loggedin")) != false){
-			$userpk  = (String) loginData.get("pk");
-			$userid  = (String) loginData.get("userid");
-			$loggedin = true;
-			$canprovoke = (Boolean) loginData.get("canprovoke");
-			$loginqrdata = (String) loginData.get("loginqrdata");
-			$hsid = (String) loginData.get("hsid");
-			return true;
-		} else {
-			$canprovoke = (Boolean) loginData.get("canprovoke");
-			$loginqrdata = (String) loginData.get("loginqrdata");
-			$hsid = (String) loginData.get("hsid");
-			return false;
-		}
-	}
-	
-	/**
-	 * Register a userId for the currently logged in session
-	 * 
-	 * @param string $userid Userid
-	 * @return boolean True on success
-	 */
-	public boolean registerUser(String userid){
-		if(!login())
-			return false;
-		
-		Map<String, String> params = new HashMap<String, String>();
-		params.put("realm", getRealm());
-		params.put("userid", userid);
-		
-		serverGet("POST",
-				new String[]{"servers",getServerid(),"sessions",getId(),"registeruser"}, params);
-		return true;
-	}
-	
-	/**
-	 * Get the userid of the currently logged in user.
-	 * 
-	 * @return string The userid or false on failure.
-	 */
-	public String getUserId(){
-		if($loggedin)
-			return $userid;
-		return null;
-	}
-	
-	/**
-	 * Synonym for login()
-	 * 
-	 * @return boolean True if the user is logged in through NAuth
-	 */
-	public boolean loggedin(){
-		return login();
-	}
-	
-	/**
-	 * Get the public key of the currently logged in user
-	 * 
-	 * @return string Base64 encoded public key
-	 */
-	public String getUserpk() {
-		if($loggedin)
-			return $userpk;
-		return null;
-	}
-	
-	/**
-	 * Return the raw data that is usually represented in a visual code for login/enrol.
-	 * 
-	 * @param string $type Type of code (either "LOGIN" or "ENROL")
-	 * @param string $name Display name to register for the user (only for ENROL)
-	 * @param string $userid Userid to register for the user (only for ENROL)
-	 */
-	public String getbase64qrcodedata(String type){
-		return getbase64qrcodedata(type,"","");
-	}
-	public String getbase64qrcodedata(String type, String name){
-		return getbase64qrcodedata(type,name,"");
-	}
-	
-	public String getbase64qrcodedata(String type, String name, String userid) {
-		/* caching is enabled for LOGIN code (this is already passed when doing a validate */
-		if("LOGIN".equals(type)){
-			if($loginqrdata != null){
-				return $loginqrdata;
-			} else {
-				login_forcecheck();
-				return $loginqrdata;
-			} 
-		}
-		
-		Map<String, String> params = new HashMap<String, String>();
-		params.put("realm", getRealm());
-		params.put("userid", userid);
-		params.put("type", type);
-		params.put("name", name);
-		
-		return serverGet("GET", new String[]{"servers",getServerid(),"sessions",getId(),"qr"}, params);
-	}
-	
-	
-	/**
-	 * Returns a PNG image of the visual login/enrol code 
-	 * 
-	 * @param string $type		Type of code (either "LOGIN" or "ENROL")
-	 * @param string $imgtype	Type of image (either "nauth" or "qr")
-	 * @param number $size		Size of the image in pixels
-	 * @param string $name		Display name to register for the user (only for ENROL)
-	 * @param string $userid	Userid to register for the user (only for ENROL)
-	 * @return Raw PNG data
-	 */
-	public byte [] getqrcodeimgdata(String type, String imgtype, int size, String name, String userid) {
-		if(!"nauth".equals(imgtype) && !"qr".equals(imgtype))
-			imgtype = "qr";
-		
-		Map<String, String> params = new HashMap<String, String>();
-		params.put("realm", getRealm());
-		params.put("userid", userid);
-		params.put("type", type);
-		params.put("name", name);
-		params.put("s", ""+size);
-		params.put("img",imgtype);
-		
-		return serverGetBytes("GET", new String[]{"servers",getServerid(),"sessions",getId(),"qr"}, params);
-	}
-	public byte [] getqrcodeimgdata(String type, String imgtype, int size) {
-		return getqrcodeimgdata(type, imgtype, size, "","");
-	}
-	
-	/**
-	 * Provoke a login for the current user
-	 * @return boolean True on success
-	 */
-	public boolean provokelogin(){
-		String result = serverGet("POST",new String[]{"servers",getServerid(),"sessions",getId(),"provokelogin"},null);
-		JSONParser parser = new JSONParser();
-		try {
-			JSONObject obj = (JSONObject) parser.parse(result);
-			Boolean ret = (Boolean) obj.get("result");
-			return ret;
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return false;
-		}
-	}
-	
-	/**
-	 * Check if a login can be provoked from the server
-	 * 
-	 * @return boolean True if provoke is possible
-	 */
-	public boolean canProvoke() {
-		if($canprovoke != null){
-			return $canprovoke;
-		} else {
-			login_forcecheck();
-			return $canprovoke;
-		}
-	}
-	
-	/**
-	 * Create a new transaction with the specified message
-	 * 
-	 * @param string $msg 	Message for the transaction
-	 * @return string 		Base64 encoded transaction identifier
-	 */
-	public String createTransaction(String msg){
-		Map<String, String> params = new HashMap<String, String>();
-		params.put("msg", msg);
-		
-		String result  = serverGet("POST",new String[]{"servers",getServerid(),"sessions",getId(),"transactions"}, params);
-		JSONParser parser = new JSONParser();
-		try {
-			JSONObject obj = (JSONObject) parser.parse(result);
-			Boolean ret = (Boolean) obj.get("result");
-			if(ret == true){
-				return (String) obj.get("tid");
-			}
-			
-			return null;
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return null;
-		}
-	}
-	
-	/**
-	 * Get all accounts of the specified user
-	 * 
-	 * @param string $userid Userid
-	 * @return JSONArray array of JSONObject's containing account data
-	 */
-	public JSONArray getUser(String userid){
-		Map<String, String> params = new HashMap<String, String>();
-		params.put("realm", getRealm());
-		
-		String data = serverGet("GET",
-				new String[]{"servers",getServerid(),"users",userid}, params);
-		
-		JSONParser jsonParser = new JSONParser();
-		try {
-			return (JSONArray) jsonParser.parse(data);
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return null;
-		}
-	}
-	
-	/**
-	 * Get all accounts of the specified user
-	 * 
-	 * @param string $userid Userid
-	 * @return JSONArray array of JSONObject's containing account data
-	 */
-	public JSONArray getUsers(){
-		Map<String, String> params = new HashMap<String, String>();
-		params.put("realm", getRealm());
-		
-		String data = serverGet("GET",
-				new String[]{"servers",getServerid(),"users"}, params);
-		
-		JSONParser jsonParser = new JSONParser();
-		try {
-			return (JSONArray) jsonParser.parse(data);
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return null;
-		}
-	}
-	
-	/**
-	 * Get all accounts of the specified user
-	 * 
-	 * @param string $userid Userid
-	 * @return JSONArray array of JSONObject's containing account data
-	 */
-	public void blockUser(String userid, boolean blocked){
-		Map<String, String> params = new HashMap<String, String>();
-		params.put("realm", getRealm());
-		params.put("blocked", blocked?"true":"false");
-		
-		serverGet("PUT",
-				new String[]{"servers",getServerid(),"users",userid}, params);
-	}
-	
-	/**
-	 * Check the status of the transaction
-	 * 
-	 * @param string $tid	Base64 encoded transaction identifier
-	 * @return 		0 for new transaction, 1 for approved transaction, 2 for declined transactions or null if the transaction does not exist
-	 */
-	public Integer checkTransaction(String tid) {
-		String result  = serverGet("GET",new String[]{"servers",getServerid(),"sessions",getId(),"transactions",tid}, null);
-		JSONParser parser = new JSONParser();
-		try {
-			JSONObject obj = (JSONObject) parser.parse(result);
-			Boolean ret = (Boolean) obj.get("result");
-			if(ret == true){
-				return (Integer) obj.get("tstatus");
-			}
-			
-			return null;
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return null;
-		}
-	}
-	
-	/**
-	 * Return the javascript code needed to setup the websocket
-	 * 
-	 */
-	public String wsinit(){
-		//return "nauthwsinit('".htmlspecialchars($this->serverid)."','".base64_encode($this->getid())."',".
-		//(($this->login())?"1":"0").",'".htmlspecialchars($this->wsuri)."','".htmlspecialchars($this->fallbackwsuri)."');";
-		throw new IllegalStateException();
-	}
+        String result = serverGet("POST", new String[]{"servers", serverId, "sessions", sessionId, "transactions"}, params);
+        JSONParser parser = new JSONParser();
+        try {
+            JSONObject obj = (JSONObject) parser.parse(result);
+            Boolean ret = (Boolean) obj.get("result");
+            if (ret == true) {
+                return (String) obj.get("tid");
+            }
+
+            return null;
+        } catch (ParseException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Check the status of the transaction
+     *
+     * @param sessionId     The id of the session
+     * @param transactionId Base64 encoded transaction identifier
+     * @return 0 for new transaction, 1 for approved transaction, 2 for declined transactions or null if the transaction does not exist
+     */
+    public Integer checkTransaction(String sessionId, String transactionId) {
+        String result = serverGet("GET", new String[]{"servers", serverId, "sessions", sessionId, "transactions", transactionId}, null);
+        JSONParser parser = new JSONParser();
+        try {
+            JSONObject obj = (JSONObject) parser.parse(result);
+            Boolean ret = (Boolean) obj.get("result");
+            if (ret == true) {
+                return (Integer) obj.get("tstatus");
+            }
+
+            return null;
+        } catch (ParseException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Get the image that identifies the n-auth server.
+     *
+     * @return The raw png data that is the visual hash of the server
+     */
+    public byte[] getVashImage() {
+        return serverGetBytes("GET", new String[]{"servers", serverId, "vash"}, new HashMap<>());
+    }
 }
