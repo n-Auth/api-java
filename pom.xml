@@ -6,14 +6,34 @@
 
     <groupId>com.nauth.api</groupId>
     <name>n-Auth: Java API</name>
+    <description>n-Auth: Java API</description>
+    <url>https://www.n-auth.com</url>
     <artifactId>nauth-java</artifactId>
     <version>1.0-LATEST-SNAPSHOT</version>
     <packaging>jar</packaging>
 
+
+  <developers>
+    <developer>
+      <name>n-Auth</name>
+      <email>maven@n-auth.com</email>
+      <organization>n-Auth</organization>
+      <organizationUrl>https://www.n-auth.com</organizationUrl>
+    </developer>
+  </developers>
+
     <scm>
-        <url>scm:git:git@github.com/pvanhees/api-java.git</url>
-        <connection>scm:git:git@github.com/pvanhees/api-java.git</connection>
+        <url>scm:git:git@github.com/n-Auth/api-java.git</url>
+        <connection>scm:git:git@github.com/n-Auth/api-java.git</connection>
     </scm>
+
+    <licenses>
+      <license>
+        <name>MIT License</name>
+        <url>https://github.com/n-Auth/api-java/blob/master/LICENSE</url>
+        <distribution>repo</distribution>
+      </license>
+    </licenses>
 
     <build>
         <plugins>
