@@ -5,7 +5,8 @@ package com.nauth.api;
  */
 public enum ImageType {
     NAUTH("nauth"),
-    QR("qr");
+    QR("qr"),
+	RAWDATA("raw");
 
     private final String type;
 

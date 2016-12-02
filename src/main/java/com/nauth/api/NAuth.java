@@ -105,7 +105,7 @@ public class NAuth {
     }
 
     /**
-     * Returns a PNG image of the visual login code
+     * Returns a PNG image of the visual login code, or the raw data if imgtype == RAWDATA
      *
      * @param sessionId the id of the session
      * @param imgtype   Type of image
@@ -122,13 +122,16 @@ public class NAuth {
         params.put("type", RequestType.LOGIN.toString());
         params.put("name", null);
         params.put("s", "" + size);
-        params.put("img", imgtype.toString());
+        if(imgtype != ImageType.RAWDATA){
+        	params.put("img", imgtype.toString());
+        }
 
         return serverGetBytes("GET", new String[]{"servers", serverId, "sessions", sessionId, "qr"}, params);
     }
+    
 
     /**
-     * Returns a PNG image of the visual register code
+     * Returns a PNG image of the visual register code, or the raw data if imgtype == RAWDATA
      *
      * @param sessionId the id of the session
      * @param userId    the id of the user trying to register
@@ -136,16 +139,22 @@ public class NAuth {
      * @param size      Size of the image in pixels
      * @return Raw PNG data
      */
-    public byte[] getRegisterImage(String sessionId, String userId, String name, int size) throws NAuthServerException{
+    public byte[] getRegisterImage(ImageType imgtype, String sessionId, String userId, String name, int size) throws NAuthServerException{
         Map<String, String> params = new HashMap<>();
         params.put("realm", realm);
         params.put("userid", userId);
         params.put("type", RequestType.REGISTER.toString());
         params.put("name", name);
         params.put("s", size + "");
-        params.put("img", ImageType.QR.toString());
+        if(imgtype != ImageType.RAWDATA){
+        	params.put("img", ImageType.QR.toString());
+        }
 
         return serverGetBytes("GET", new String[]{"servers", serverId, "sessions", sessionId, "qr"}, params);
+    }
+    
+    public byte[] getRegisterImage(String sessionId, String userId, String name, int size) throws NAuthServerException{
+    	return getRegisterImage(ImageType.QR,sessionId,userId,name,size);
     }
 
     /**
