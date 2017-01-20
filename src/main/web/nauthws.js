@@ -110,6 +110,10 @@ function nauthwsreceive(msg, knownstatus) {
 		else
 			location.assign(".");
 		
+	} else if (msg.indexOf("CONFIRMPROVOKE") == 0){
+		if(typeof nauthwsprovokeconfirm == 'function'){
+			nauthwsprovokeconfirm();
+		}
 	}
 }
 

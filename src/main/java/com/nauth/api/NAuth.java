@@ -277,21 +277,6 @@ public class NAuth {
     }
 
     /**
-     * block account of the given user
-     *
-     * @param userid Userid
-     * @return true if the action was successful
-     */
-    public boolean blockAccount(String userid, boolean blocked) throws NAuthServerException {
-        Map<String, String> params = new HashMap<>();
-        params.put("realm", realm);
-        params.put("blocked", blocked ? "true" : "false");
-
-        serverGet("PUT", new String[]{"servers", serverId, "users", userid}, params);
-        return true;
-    }
-
-    /**
      * Delete account with given accountId.
      *
      * @param accountId The id of the account that is to be deleted
@@ -304,56 +289,7 @@ public class NAuth {
         return true;
     }
 
-    /**
-     * Create a new transaction with the specified message
-     *
-     * @param sessionId The id of the session
-     * @param msg       Message for the transaction
-     * @return Base64 encoded transaction identifier
-     */
-    public String createTransaction(String sessionId, String msg) throws NAuthServerException {
-        Map<String, String> params = new HashMap<>();
-        params.put("msg", msg);
-
-        String result = serverGet("POST", new String[]{"servers", serverId, "sessions", sessionId, "transactions"}, params);
-        JSONParser parser = new JSONParser();
-        try {
-            JSONObject obj = (JSONObject) parser.parse(result);
-            Boolean ret = (Boolean) obj.get("result");
-            if (ret == true) {
-                return (String) obj.get("tid");
-            }
-
-            return null;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    /**
-     * Check the status of the transaction
-     *
-     * @param sessionId     The id of the session
-     * @param transactionId Base64 encoded transaction identifier
-     * @return 0 for new transaction, 1 for approved transaction, 2 for declined transactions or null if the transaction does not exist
-     */
-    public Integer checkTransaction(String sessionId, String transactionId) throws NAuthServerException {
-        String result = serverGet("GET", new String[]{"servers", serverId, "sessions", sessionId, "transactions", transactionId}, null);
-        JSONParser parser = new JSONParser();
-        try {
-            JSONObject obj = (JSONObject) parser.parse(result);
-            Boolean ret = (Boolean) obj.get("result");
-            if (ret == true) {
-                return (Integer) obj.get("tstatus");
-            }
-
-            return null;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
+    
 
     /**
      * Get the image that identifies the n-auth server.
