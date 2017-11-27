@@ -103,6 +103,26 @@ public class NAuth {
                 new String[]{"servers", serverId, "sessions", sessionId, "registeruser"}, params);
         return true;
     }
+    
+    private void addSessionInfoToParams(Map<String, String> params, SessionInfo info){
+    	if(info.getAnnounceInfo() != null)
+    		params.put("announce_info", info.getAnnounceInfo());
+    	if(info.getAnnounceIp() != null)
+    		params.put("announce_ip", info.getAnnounceIp());
+    	if(info.getAnnounceUseragent() != null)
+    		params.put("announce_useragent", info.getAnnounceUseragent());
+    	if(info.getAnnounceLogo() != null)
+    		params.put("announce_logo", Base64.getEncoder().encodeToString(info.getAnnounceLogo()));
+    	
+    	if(info.getSessionInfo() != null)
+    		params.put("session_info", info.getSessionInfo());
+    	if(info.getSessionIp() != null)
+    		params.put("session_ip", info.getSessionIp());
+    	if(info.getSessionUseragent() != null)
+    		params.put("session_useragent", info.getSessionUseragent());
+    	if(info.getSessionLogo() != null)
+    		params.put("session_logo", Base64.getEncoder().encodeToString(info.getSessionLogo()));
+    }
 
     /**
      * Returns a PNG image of the visual login code, or the raw data if imgtype == RAWDATA
@@ -112,7 +132,7 @@ public class NAuth {
      * @param size      Size of the image in pixels
      * @return Raw PNG data
      */
-    public byte[] getLoginImage(String sessionId, ImageType imgtype, int size) throws NAuthServerException {
+    public byte[] getLoginImage(String sessionId, ImageType imgtype, int size, SessionInfo info) throws NAuthServerException {
         if (imgtype == null)
             imgtype = ImageType.QR;
 
@@ -125,6 +145,7 @@ public class NAuth {
         if(imgtype != ImageType.RAWDATA){
         	params.put("img", imgtype.toString());
         }
+        addSessionInfoToParams(params, info);
 
         return serverGetBytes("GET", new String[]{"servers", serverId, "sessions", sessionId, "qr"}, params);
     }
@@ -139,7 +160,7 @@ public class NAuth {
      * @param size      Size of the image in pixels
      * @return Raw PNG data
      */
-    public byte[] getRegisterImage(ImageType imgtype, String sessionId, String userId, String name, int size) throws NAuthServerException{
+    public byte[] getRegisterImage(ImageType imgtype, String sessionId, String userId, String name, int size, SessionInfo info) throws NAuthServerException{
         Map<String, String> params = new HashMap<>();
         params.put("realm", realm);
         params.put("userid", userId);
@@ -149,12 +170,13 @@ public class NAuth {
         if(imgtype != ImageType.RAWDATA){
         	params.put("img", ImageType.QR.toString());
         }
+        addSessionInfoToParams(params, info);
 
         return serverGetBytes("GET", new String[]{"servers", serverId, "sessions", sessionId, "qr"}, params);
     }
     
-    public byte[] getRegisterImage(String sessionId, String userId, String name, int size) throws NAuthServerException{
-    	return getRegisterImage(ImageType.QR,sessionId,userId,name,size);
+    public byte[] getRegisterImage(String sessionId, String userId, String name, int size, SessionInfo info) throws NAuthServerException{
+    	return getRegisterImage(ImageType.QR,sessionId,userId,name,size,info);
     }
 
     /**
@@ -162,8 +184,11 @@ public class NAuth {
      *
      * @return boolean True on success
      */
-    public boolean provokeloginOnSession(String sessionId) throws NAuthServerException{
-        String result = serverGet("POST", new String[]{"servers", serverId, "sessions", sessionId, "provokelogin"}, null);
+    public boolean provokeloginOnSession(String sessionId, SessionInfo info) throws NAuthServerException{
+    	Map<String, String> params = new HashMap<>();
+    	addSessionInfoToParams(params, info);
+    	
+        String result = serverGet("POST", new String[]{"servers", serverId, "sessions", sessionId, "provokelogin"}, params);
         JSONParser parser = new JSONParser();
         try {
             JSONObject obj = (JSONObject) parser.parse(result);
@@ -180,8 +205,11 @@ public class NAuth {
      *
      * @return boolean True on success
      */
-    public boolean provokeloginOnAccount(String sessionId, String accountId) throws NAuthServerException{
-        String result = serverGet("POST", new String[]{"servers", serverId, "accounts", accountId, "provokelogin", sessionId, "provokelogin"}, null);
+    public boolean provokeloginOnAccount(String sessionId, String accountId, SessionInfo info) throws NAuthServerException{
+    	Map<String, String> params = new HashMap<>();
+    	addSessionInfoToParams(params, info);
+    	
+        String result = serverGet("POST", new String[]{"servers", serverId, "accounts", accountId, "provokelogin", sessionId, "provokelogin"}, params);
         JSONParser parser = new JSONParser();
         try {
             JSONObject obj = (JSONObject) parser.parse(result);
@@ -199,8 +227,11 @@ public class NAuth {
      *
      * @return boolean True on success
      */
-    public boolean provokeloginOnUser(String sessionId, String userId) throws NAuthServerException{
-        String result = serverGet("POST", new String[]{"servers", serverId, "users", userId, "provokelogin", sessionId, "provokelogin"}, null);
+    public boolean provokeloginOnUser(String sessionId, String userId, SessionInfo info) throws NAuthServerException{
+    	Map<String, String> params = new HashMap<>();
+    	addSessionInfoToParams(params, info);
+    	
+        String result = serverGet("POST", new String[]{"servers", serverId, "users", userId, "provokelogin", sessionId, "provokelogin"}, params);
         JSONParser parser = new JSONParser();
         try {
             JSONObject obj = (JSONObject) parser.parse(result);
