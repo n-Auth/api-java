@@ -1,4 +1,4 @@
-n-Auth Java API
+nextAuth Java API
 ===============
 [![Build Status](https://travis-ci.org/pvanhees/api-java.svg?branch=master)](https://travis-ci.org/n-Auth/api-java)
 
