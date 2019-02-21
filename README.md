@@ -4,12 +4,12 @@ nextAuth Java API
 
 ### Downloading the repository
 
-Download the ZIP from https://github.com/n-Auth/api-java/archive/master.zip or clone the git repository:
+Download the ZIP from https://github.com/next-Auth/api-java/archive/master.zip or clone the git repository:
 
-git clone https://github.com/n-Auth/api-java/
+git clone https://github.com/next-Auth/api-java/
 
 ### Structure of this package:
-* src/* : Source of the nAuth JAVA API
+* src/* : Source of the nextAuth JAVA API
 * lib/* : support libraries (logging, http client and json)
 
 ### Usage
